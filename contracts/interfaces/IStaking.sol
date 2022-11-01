@@ -25,12 +25,12 @@ interface IStakingBonus {
 
   function claimReward(uint256 _ID) external;
 
-  function calculateForceWithdrawBonus(uint256 _amount,uint256 _timeStartStake) external view returns(uint256 bonus);
+  function calculateForceWithdrawBonus(uint256 _amount,uint256 _timeStartStake, uint256 _duration) external view returns(uint256);
 
-  function calculateBonus(uint256 _amount,uint256 _duration) external view returns(uint256 bonus);
+  function calculateBonus(uint256 _amount,uint256 _duration) external view returns(uint256);
 
   function getAllStakeUser(address _account) view external returns(StakingUserInfo[] memory);
 
-  function viewAmountBonusCurrent(address user, uint256 _ID) view external returns(uint256 bonus);
+  function viewAmountBonusCurrent(address user, uint256 _ID) view external returns(uint256);
 
 }

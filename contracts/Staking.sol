@@ -3,19 +3,22 @@ pragma solidity ^0.8;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
-import "./IStaking.sol";
+import "./interfaces/IStaking.sol";
 
-contract StakingBonus is IStakingBonus{
+contract StakingBonus is IStakingBonus {
+
     using Counters for Counters.Counter;
     Counters.Counter public ID;
-    IERC20 public immutable tokenA;
-    IERC20 public immutable tokenB;
+    IERC20 public tokenA;
+    IERC20 public tokenB;
     address public owner;
     uint256 minTimeToReward = 10;   // 10s 
     uint256 public bonusWillPay = 0;
     DateAndRate[] public date;
+    uint256 public divisor = 1000000000;
     
-    mapping(address => StakingUserInfo[]) private stakingUserInfo; 
+    mapping(address => StakingUserInfo[]) private stakingUserInfo;
+    mapping(uint256 => uint256) private dateToRate; 
 
     constructor(address _tokenA, address _tokenB, uint256[] memory _date, uint256[] memory _rate) checkInputArray(_date.length, _rate.length) {
         owner = msg.sender;
@@ -23,6 +26,7 @@ contract StakingBonus is IStakingBonus{
         tokenB = IERC20(_tokenB);
         for(uint256 i = 0; i < _date.length; i ++) {
           date.push(DateAndRate(_date[i], _rate[i]));
+          dateToRate[_date[i]] = _rate[i];
         }
     }
 
@@ -44,7 +48,7 @@ contract StakingBonus is IStakingBonus{
     }
 
     function _addStakeOfUser(uint256 _balanceStakeOf, uint256 _timeStartStake, uint256 _durationUser,address _account) private {
-        uint256 totalReward = calculateBonus( _balanceStakeOf,_durationUser); 
+        uint256 totalReward = calculateBonus( _balanceStakeOf,_durationUser);
         StakingUserInfo memory newStake = StakingUserInfo(_balanceStakeOf,_timeStartStake,_durationUser,ID.current(),0,totalReward);
         stakingUserInfo[_account].push(newStake);
         ID.increment();
@@ -81,7 +85,7 @@ contract StakingBonus is IStakingBonus{
         if(block.timestamp - startTime >= duration) {
           bonus = calculateBonus(amount, duration) - totalRewardClaimed;
         }else {
-          bonus = calculateForceWithdrawBonus(amount, startTime) - totalRewardClaimed;
+          bonus = calculateForceWithdrawBonus(amount, startTime, duration) - totalRewardClaimed;
         }
         require(tokenB.balanceOf(address(this)) >= bonus,"not enough balance");
         data.amountRewardClaimed += bonus;
@@ -125,11 +129,13 @@ contract StakingBonus is IStakingBonus{
         _;
     }
 
-    function calculateForceWithdrawBonus(uint256 _amount,uint256 _timeStartStake) public view override returns(uint256 bonus){
+    function calculateForceWithdrawBonus(uint256 _amount,uint256 _timeStartStake, uint256 _duration) public view override returns(uint256 bonus){
         // describe how many `10 second` passed
         uint256 cycleBonus = (block.timestamp - _timeStartStake) / minTimeToReward;
         // every 10 second equal 1% rate bonus
         bonus = cycleBonus*_amount*1/100;
+        uint256 rate = (dateToRate[_duration] * _duration ) / (divisor * minTimeToReward);
+        bonus = cycleBonus*_amount*rate;
         return bonus;
     }
 
@@ -137,7 +143,7 @@ contract StakingBonus is IStakingBonus{
       bool checkDuration = false;
         for(uint256 i = 0; i < date.length; i ++) {
           if(_duration == date[i].date) {
-            bonus = _amount * date[i].rate / 100;
+            bonus = _amount * date[i].rate / divisor;
             checkDuration = true;
             break;
           }
@@ -168,7 +174,7 @@ contract StakingBonus is IStakingBonus{
       if(block.timestamp - startTime >= duration) {
         bonus = calculateBonus(amount, duration) - totalRewardClaimed;
       }else {
-        bonus = calculateForceWithdrawBonus(amount, startTime) - totalRewardClaimed;
+        bonus = calculateForceWithdrawBonus(amount, startTime, duration) - totalRewardClaimed;
       }
 
       return bonus;
