@@ -33,4 +33,6 @@ interface IStakingBonus {
 
   function viewAmountBonusCurrent(address user, uint256 _ID) view external returns(uint256);
 
+  function viewMaxRewardPool() view external returns(uint256);
+
 }
