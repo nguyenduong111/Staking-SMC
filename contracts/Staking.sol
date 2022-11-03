@@ -12,7 +12,7 @@ contract StakingBonus is IStakingBonus {
     IERC20 public tokenA;
     IERC20 public tokenB;
     address public owner;
-    uint256 minTimeToReward = 10;   // 10s 
+    uint256 minTimeToReward = 60;   // 10s 
     uint256 public bonusWillPay = 0;
     DateAndRate[] public date;
     uint256 public divisor = 1000000000;
@@ -59,18 +59,21 @@ contract StakingBonus is IStakingBonus {
         uint256 _timeStartStake = block.timestamp;
         _addStakeOfUser(_amount,_timeStartStake, _duration, msg.sender);
         tokenA.transferFrom(msg.sender, address(this), _amount);
+        emit Stake(msg.sender, _amount, _duration);
     }
 
     
     function withdrawTokenStake(uint256 _ID) public override resetStakeOfUser(_ID){
         StakingUserInfo memory data = _findStake(msg.sender, _ID);
-        require(data.amountRewardClaimed == data.totalReward, "must claim all reward!!!");
         uint256 duration = data.durationUser;
         uint256 startTime = data.timeStartStake;
         require(startTime + duration < block.timestamp ,"haven't time yet");
+        if(data.totalReward - data.amountRewardClaimed != 0) {
+          tokenB.transfer(msg.sender, data.totalReward - data.amountRewardClaimed);
+        }
           
         tokenA.transfer(msg.sender, data.balanceStakeOf);
-          
+        emit WithdrawTokenStake(msg.sender, data.balanceStakeOf, _ID);
     }
 
     function claimReward(uint256 _ID) public override {
@@ -90,6 +93,7 @@ contract StakingBonus is IStakingBonus {
         require(tokenB.balanceOf(address(this)) >= bonus,"not enough balance");
         data.amountRewardClaimed += bonus;
         tokenB.transfer(msg.sender, bonus);
+        emit ClaimReward(msg.sender, bonus, _ID);
     }
 
     modifier checkInputArray (uint256 _date, uint256 _rate) {
@@ -133,9 +137,8 @@ contract StakingBonus is IStakingBonus {
         // describe how many `10 second` passed
         uint256 cycleBonus = (block.timestamp - _timeStartStake) / minTimeToReward;
         // every 10 second equal 1% rate bonus
-        bonus = cycleBonus*_amount*1/100;
-        uint256 rate = (dateToRate[_duration] * _duration ) / (divisor * minTimeToReward);
-        bonus = cycleBonus*_amount*rate;
+        uint256 rate = (_amount * dateToRate[_duration] * minTimeToReward ) / (divisor * _duration);
+        bonus = cycleBonus*rate;
         return bonus;
     }
 
@@ -178,6 +181,10 @@ contract StakingBonus is IStakingBonus {
       }
 
       return bonus;
+    }
+
+    function viewMaxRewardPool() view public override returns(uint256) {
+      return tokenB.balanceOf(address(this)) - bonusWillPay;
     }
 
 }

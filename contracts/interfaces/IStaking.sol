@@ -15,7 +15,12 @@ interface IStakingBonus {
         uint256 IDStake;
         uint256 amountRewardClaimed;
         uint256 totalReward;
-    }    
+  }
+
+  event Stake(address user, uint256 _amount,uint256 _duration);
+  event WithdrawTokenStake(address user, uint256 _amount, uint256 _ID);
+  event ClaimReward(address user, uint256 _amount, uint256 _ID);
+      
 
   function totalStakingBalanceOfUser(address _account) view external returns(uint256);
 
