@@ -20,6 +20,9 @@ interface IStakingBonus {
   event Stake(address user, uint256 _amount,uint256 _duration);
   event WithdrawTokenStake(address user, uint256 _amount, uint256 _ID);
   event ClaimReward(address user, uint256 _amount, uint256 _ID);
+  event SendRewardByAdmin(address user, uint256 _amount, uint256 timestamp);
+  event WithdrawnByAdmin(address user, uint256 _amount, uint256 timestamp);
+  
       
 
   function totalStakingBalanceOfUser(address _account) view external returns(uint256);
@@ -39,5 +42,9 @@ interface IStakingBonus {
   function viewAmountBonusCurrent(address user, uint256 _ID) view external returns(uint256);
 
   function viewMaxRewardPool() view external returns(uint256);
+
+  function sendRewardByAdmin(uint256 _amount) external;
+
+  function withdrawnByAdmin(uint256 _amount) external;
 
 }

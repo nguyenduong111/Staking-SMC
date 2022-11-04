@@ -3,17 +3,18 @@ pragma solidity ^0.8;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IStaking.sol";
 
-contract StakingBonus is IStakingBonus {
+contract StakingBonus is IStakingBonus, Ownable {
 
     using Counters for Counters.Counter;
     Counters.Counter public ID;
     IERC20 public tokenA;
     IERC20 public tokenB;
-    address public owner;
     uint256 minTimeToReward = 60;   // 10s 
     uint256 public bonusWillPay = 0;
+    uint256 private totalRewardPool = 0;
     DateAndRate[] public date;
     uint256 public divisor = 1000000000;
     
@@ -21,7 +22,6 @@ contract StakingBonus is IStakingBonus {
     mapping(uint256 => uint256) private dateToRate; 
 
     constructor(address _tokenA, address _tokenB, uint256[] memory _date, uint256[] memory _rate) checkInputArray(_date.length, _rate.length) {
-        owner = msg.sender;
         tokenA = IERC20(_tokenA);
         tokenB = IERC20(_tokenB);
         for(uint256 i = 0; i < _date.length; i ++) {
@@ -90,7 +90,7 @@ contract StakingBonus is IStakingBonus {
         }else {
           bonus = calculateForceWithdrawBonus(amount, startTime, duration) - totalRewardClaimed;
         }
-        require(tokenB.balanceOf(address(this)) >= bonus,"not enough balance");
+        require(totalRewardPool >= bonus,"not enough balance");
         data.amountRewardClaimed += bonus;
         tokenB.transfer(msg.sender, bonus);
         emit ClaimReward(msg.sender, bonus, _ID);
@@ -129,7 +129,7 @@ contract StakingBonus is IStakingBonus {
         require(checkDuration, "wrong duration");
         require(_amount > 0, "amount = 0");
         bonusWillPay += calculateBonus( _amount,_duration);
-        require(tokenB.balanceOf(address(this)) >= bonusWillPay,"not enough balance to pay reward");
+        require(totalRewardPool >= bonusWillPay,"not enough balance to pay reward");
         _;
     }
 
@@ -184,7 +184,21 @@ contract StakingBonus is IStakingBonus {
     }
 
     function viewMaxRewardPool() view public override returns(uint256) {
-      return tokenB.balanceOf(address(this)) - bonusWillPay;
+      return totalRewardPool - bonusWillPay;
     }
+
+  // admin call
+  function sendRewardByAdmin(uint256 _amount) public override onlyOwner {
+      tokenB.transferFrom(msg.sender, address(this), _amount);
+      totalRewardPool += _amount;
+      emit SendRewardByAdmin(msg.sender, _amount, block.timestamp);
+  }
+
+  function withdrawnByAdmin(uint256 _amount) public override onlyOwner {
+    if(totalRewardPool - _amount > 0) {
+      tokenB.transfer(msg.sender, _amount);
+    }
+    emit WithdrawnByAdmin(msg.sender, _amount, block.timestamp);
+  }
 
 }
