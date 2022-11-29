@@ -4,14 +4,10 @@ pragma solidity ^0.8;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interfaces/IStakingFlexible.sol";
 
-contract StakingFlexible is Ownable {
+contract StakingFlexible is Ownable, IStakingFlexible {
 
-    struct StakeInfo {
-        uint256 amount;
-        uint256 apr;
-        uint256 startTime;
-    }
     mapping(address => StakeInfo[]) private listStakeUser;
     
     IERC20 public token;
@@ -26,18 +22,22 @@ contract StakingFlexible is Ownable {
     }
 
     // admin function
-    function setApr(uint256 _apr) public onlyOwner {
+    function setApr(uint256 _apr) public override onlyOwner {
         apr = _apr;
+        emit SetApr(msg.sender, _apr, block.timestamp);
     }
 
-    function sendTokenReward(uint256 _amount) public onlyOwner {
+    function sendTokenReward(uint256 _amount) public override onlyOwner {
         token.transferFrom(msg.sender, address(this), _amount);
         totalRewardPool += _amount;
+        emit SendRewardByAdmin(msg.sender, _amount, block.timestamp);
     }
 
-    function withdrawToken(uint256 _amount) public onlyOwner {
+    function withdrawToken(uint256 _amount) public override onlyOwner {
         require(_amount <= totalRewardPool, "not enough token to withdraw");
         token.transfer(msg.sender, _amount);
+        totalRewardPool -= _amount;
+        emit WithdrawnByAdmin(msg.sender, _amount, block.timestamp);
     }
 
 // private function
@@ -61,38 +61,42 @@ contract StakingFlexible is Ownable {
         token.transfer(_user, bonus + dataUser.amount);
         removeItemArray(_user, _index);
         totalRewardPool -= bonus;
+
+        emit ClaimReward(_user, bonus + dataUser.amount, _claimTime);
     }    
 
     // user function
-    function stakeToken(uint256 _amount) public {
+    function stakeToken(uint256 _amount) public override {
         require(token.allowance(msg.sender, address(this)) >= _amount, "not enough token approve to stake");
         token.transferFrom(msg.sender, address(this), _amount);
         StakeInfo memory dataStake = StakeInfo(_amount, apr, block.timestamp);
         listStakeUser[msg.sender].push(dataStake);
+        emit Stake(msg.sender, _amount, block.timestamp , apr);
     }
 
-    function claimReward(uint256 _index) public {
+    function claimReward(uint256 _index) public override {
         uint256 size = listStakeUser[msg.sender].length;
         require (_index < size, "index incorrect");
         uint256 claimTime = block.timestamp;
 
         _claimReward(msg.sender, _index, claimTime);
+        
     }
 
     // view function
-    function getApr() public view returns(uint256) {
+    function getApr() public view override returns(uint256) {
         return apr;
     }
 
-    function getTotalRewardPool() public view returns(uint256) {
+    function getTotalRewardPool() public view override returns(uint256) {
         return totalRewardPool;
     }
 
-    function showListStakeUser() public view returns(StakeInfo[] memory) {
-        return listStakeUser[msg.sender];
+    function showListStakeUser(address _user) public view override returns(StakeInfo[] memory) {
+        return listStakeUser[_user];
     }
 
-    function viewAmountBonusCurrent(uint256 _index) public view returns(uint256) {
+    function viewAmountBonusCurrent(uint256 _index) public view override returns(uint256) {
         uint256 size = listStakeUser[msg.sender].length;
         require (_index < size, "index incorrect");
         StakeInfo memory dataUser = listStakeUser[msg.sender][_index];
