@@ -12,12 +12,13 @@ interface IStakingBonus {
         uint256 balanceStakeOf;
         uint256 timeStartStake;
         uint256 durationUser;
+        uint256 rateUser;
         uint256 IDStake;
         uint256 amountRewardClaimed;
         uint256 totalReward;
   }
 
-  event Stake(address user, uint256 _amount,uint256 _duration);
+  event Stake(address user, uint256 _amount, uint256 _duration, uint256 rate);
   event WithdrawTokenStake(address user, uint256 _amount, uint256 _ID);
   event ClaimReward(address user, uint256 _amount, uint256 _ID);
   event SendRewardByAdmin(address user, uint256 _amount, uint256 timestamp);
@@ -33,10 +34,6 @@ interface IStakingBonus {
 
   function claimReward(uint256 _ID) external;
 
-  function calculateForceWithdrawBonus(uint256 _amount,uint256 _timeStartStake, uint256 _duration) external view returns(uint256);
-
-  function calculateBonus(uint256 _amount,uint256 _duration) external view returns(uint256);
-
   function getAllStakeUser(address _account) view external returns(StakingUserInfo[] memory);
 
   function viewAmountBonusCurrent(address user, uint256 _ID) view external returns(uint256);
@@ -46,5 +43,7 @@ interface IStakingBonus {
   function sendRewardByAdmin(uint256 _amount) external;
 
   function withdrawnByAdmin(uint256 _amount) external;
+
+  function setDateAndRate(uint256[] memory _date, uint256[] memory _rate) external;
 
 }

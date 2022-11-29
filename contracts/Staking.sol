@@ -14,20 +14,16 @@ contract StakingBonus is IStakingBonus, Ownable {
     IERC20 public tokenB;
     uint256 minTimeToReward = 60;   // 10s 
     uint256 public bonusWillPay = 0;
-    uint256 private totalRewardPool = 0;
+    uint256 public totalRewardPool = 0;
     DateAndRate[] public date;
     uint256 public divisor = 1000000000;
     
     mapping(address => StakingUserInfo[]) private stakingUserInfo;
     mapping(uint256 => uint256) private dateToRate; 
 
-    constructor(address _tokenA, address _tokenB, uint256[] memory _date, uint256[] memory _rate) checkInputArray(_date.length, _rate.length) {
+    constructor(address _tokenA, address _tokenB) {
         tokenA = IERC20(_tokenA);
         tokenB = IERC20(_tokenB);
-        for(uint256 i = 0; i < _date.length; i ++) {
-          date.push(DateAndRate(_date[i], _rate[i]));
-          dateToRate[_date[i]] = _rate[i];
-        }
     }
 
     function totalStakingBalanceOfUser(address _account) view public override returns(uint256){
@@ -48,8 +44,8 @@ contract StakingBonus is IStakingBonus, Ownable {
     }
 
     function _addStakeOfUser(uint256 _balanceStakeOf, uint256 _timeStartStake, uint256 _durationUser,address _account) private {
-        uint256 totalReward = calculateBonus( _balanceStakeOf,_durationUser);
-        StakingUserInfo memory newStake = StakingUserInfo(_balanceStakeOf,_timeStartStake,_durationUser,ID.current(),0,totalReward);
+        uint256 totalReward = calculateBonus( _balanceStakeOf,_durationUser, dateToRate[_durationUser]);
+        StakingUserInfo memory newStake = StakingUserInfo(_balanceStakeOf,_timeStartStake,_durationUser,dateToRate[_durationUser],ID.current(),0,totalReward);
         stakingUserInfo[_account].push(newStake);
         ID.increment();
     }
@@ -59,7 +55,7 @@ contract StakingBonus is IStakingBonus, Ownable {
         uint256 _timeStartStake = block.timestamp;
         _addStakeOfUser(_amount,_timeStartStake, _duration, msg.sender);
         tokenA.transferFrom(msg.sender, address(this), _amount);
-        emit Stake(msg.sender, _amount, _duration);
+        emit Stake(msg.sender, _amount, _duration, dateToRate[_duration]);
     }
 
     
@@ -68,8 +64,11 @@ contract StakingBonus is IStakingBonus, Ownable {
         uint256 duration = data.durationUser;
         uint256 startTime = data.timeStartStake;
         require(startTime + duration < block.timestamp ,"haven't time yet");
-        if(data.totalReward - data.amountRewardClaimed != 0) {
-          tokenB.transfer(msg.sender, data.totalReward - data.amountRewardClaimed);
+        uint256 bonusNotReceived = data.totalReward - data.amountRewardClaimed;
+        if(bonusNotReceived != 0) {
+          tokenB.transfer(msg.sender, bonusNotReceived);
+          totalRewardPool -= bonusNotReceived;
+          bonusWillPay -= bonusNotReceived;
         }
           
         tokenA.transfer(msg.sender, data.balanceStakeOf);
@@ -80,19 +79,22 @@ contract StakingBonus is IStakingBonus, Ownable {
         StakingUserInfo storage data = _findStake(msg.sender, _ID);
         require(data.amountRewardClaimed < data.totalReward, "bonus has been withdrawn");
         uint256 duration = data.durationUser;
+        uint256 rate = data.rateUser;
         uint256 startTime = data.timeStartStake;
         uint256 amount = data.balanceStakeOf;
         uint256 bonus = 0;
         uint256 totalRewardClaimed = data.amountRewardClaimed;
 
         if(block.timestamp - startTime >= duration) {
-          bonus = calculateBonus(amount, duration) - totalRewardClaimed;
+          bonus = calculateBonus(amount, duration, rate) - totalRewardClaimed;
         }else {
-          bonus = calculateForceWithdrawBonus(amount, startTime, duration) - totalRewardClaimed;
+          bonus = calculateForceWithdrawBonus(amount, startTime, duration, rate) - totalRewardClaimed;
         }
         require(totalRewardPool >= bonus,"not enough balance");
         data.amountRewardClaimed += bonus;
         tokenB.transfer(msg.sender, bonus);
+        totalRewardPool -= bonus;
+        bonusWillPay -=bonus;
         emit ClaimReward(msg.sender, bonus, _ID);
     }
 
@@ -103,8 +105,6 @@ contract StakingBonus is IStakingBonus, Ownable {
 
     modifier resetStakeOfUser(uint256 _ID){
         _;
-        uint256 bonus = calculateBonus(_findStake(msg.sender,_ID).balanceStakeOf,_findStake(msg.sender,_ID).durationUser);
-        bonusWillPay -= bonus;
         bool check = false;
         uint256 stakeLength = stakingUserInfo[msg.sender].length;
         for(uint256 i=0;i< stakeLength; i++){
@@ -128,31 +128,22 @@ contract StakingBonus is IStakingBonus, Ownable {
         }
         require(checkDuration, "wrong duration");
         require(_amount > 0, "amount = 0");
-        bonusWillPay += calculateBonus( _amount,_duration);
+        bonusWillPay += calculateBonus( _amount,_duration,dateToRate[_duration]);
         require(totalRewardPool >= bonusWillPay,"not enough balance to pay reward");
         _;
     }
 
-    function calculateForceWithdrawBonus(uint256 _amount,uint256 _timeStartStake, uint256 _duration) public view override returns(uint256 bonus){
+    function calculateForceWithdrawBonus(uint256 _amount,uint256 _timeStartStake, uint256 _duration, uint256 _rate) private view returns(uint256 bonus){
         // describe how many `10 second` passed
         uint256 cycleBonus = (block.timestamp - _timeStartStake) / minTimeToReward;
         // every 10 second equal 1% rate bonus
-        uint256 rate = (_amount * dateToRate[_duration] * minTimeToReward ) / (divisor * _duration);
-        bonus = cycleBonus*rate;
+        uint256 rate = (_amount * _rate * minTimeToReward ) / (divisor * _duration);
+        bonus = cycleBonus * rate;
         return bonus;
     }
 
-    function calculateBonus(uint256 _amount,uint256 _duration) public view override returns(uint256 bonus){
-      bool checkDuration = false;
-        for(uint256 i = 0; i < date.length; i ++) {
-          if(_duration == date[i].date) {
-            bonus = _amount * date[i].rate / divisor;
-            checkDuration = true;
-            break;
-          }
-        }
-        require(checkDuration, "wrong duration in calculateBonus");
-
+    function calculateBonus(uint256 _amount,uint256 _duration, uint256 _rate) private view returns(uint256 bonus){
+        bonus = _amount * _rate / divisor;
         return bonus;
     }
     
@@ -169,15 +160,16 @@ contract StakingBonus is IStakingBonus, Ownable {
     function viewAmountBonusCurrent(address user, uint256 _ID) view public override returns(uint256 bonus) {
       StakingUserInfo memory data = _findStake(user, _ID);
       uint256 duration = data.durationUser;
+      uint256 rate = data.rateUser;
       uint256 startTime = data.timeStartStake;
       uint256 amount = data.balanceStakeOf;
       uint256 totalRewardClaimed = data.amountRewardClaimed;
 
 
       if(block.timestamp - startTime >= duration) {
-        bonus = calculateBonus(amount, duration) - totalRewardClaimed;
+        bonus = calculateBonus(amount, duration, rate) - totalRewardClaimed;
       }else {
-        bonus = calculateForceWithdrawBonus(amount, startTime, duration) - totalRewardClaimed;
+        bonus = calculateForceWithdrawBonus(amount, startTime, duration, rate) - totalRewardClaimed;
       }
 
       return bonus;
@@ -199,6 +191,18 @@ contract StakingBonus is IStakingBonus, Ownable {
       tokenB.transfer(msg.sender, _amount);
     }
     emit WithdrawnByAdmin(msg.sender, _amount, block.timestamp);
+  }
+
+  function setDateAndRate(uint256[] memory _date, uint256[] memory _rate) 
+    public 
+    override 
+    onlyOwner 
+    checkInputArray(_date.length, _rate.length) 
+  {
+    for(uint256 i = 0; i < _date.length; i ++) {
+      date.push(DateAndRate(_date[i], _rate[i]));
+      dateToRate[_date[i]] = _rate[i];
+    }
   }
 
 }
