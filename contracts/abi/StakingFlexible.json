@@ -130,9 +130,40 @@
 				"internalType": "uint256",
 				"name": "rate",
 				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "ID",
+				"type": "uint256"
 			}
 		],
 		"name": "Stake",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "_amount",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "_claimTime",
+				"type": "uint256"
+			}
+		],
+		"name": "WithdrawTokenStake",
 		"type": "event"
 	},
 	{
@@ -161,10 +192,23 @@
 		"type": "event"
 	},
 	{
+		"inputs": [],
+		"name": "ID",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "_value",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"inputs": [
 			{
 				"internalType": "uint256",
-				"name": "_index",
+				"name": "_ID",
 				"type": "uint256"
 			}
 		],
@@ -284,6 +328,16 @@
 						"internalType": "uint256",
 						"name": "startTime",
 						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "timeClaimed",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "ID",
+						"type": "uint256"
 					}
 				],
 				"internalType": "struct IStakingFlexible.StakeInfo[]",
@@ -336,8 +390,13 @@
 	{
 		"inputs": [
 			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			},
+			{
 				"internalType": "uint256",
-				"name": "_index",
+				"name": "_ID",
 				"type": "uint256"
 			}
 		],
@@ -360,7 +419,20 @@
 				"type": "uint256"
 			}
 		],
-		"name": "withdrawToken",
+		"name": "withdrawTokenAdmin",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_ID",
+				"type": "uint256"
+			}
+		],
+		"name": "withdrawTokenStake",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
